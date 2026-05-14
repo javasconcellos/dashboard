@@ -1,0 +1,540 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Seguimiento de Hitos — Concesión Ruta del Itata</title>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=DM+Mono:wght@400;500&family=Sora:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --ink:#0D1117;--ink-soft:#3A4250;--ink-muted:#6B7688;
+  --canvas:#F7F5F0;--canvas-alt:#EFECE5;--rule:#D8D3C8;
+  --accent:#1B3A6B;--accent-mid:#2E5FA3;--accent-lt:#EBF0FA;
+  --ok:#1A5C2A;--ok-bg:#E8F5EC;
+  --warn:#7A4800;--warn-bg:#FFF4E0;
+  --crit:#8B1A1A;--crit-bg:#FDEAEA;
+  --pend:#1B3A6B;--pend-bg:#EBF0FA;
+  --perm:#4A148C;--perm-bg:#F3EEFF;
+  --late:#660000;--late-bg:#F4CCCC;
+  --venc:#7A2800;--venc-bg:#FFE0B2;
+  --purple:#7C3AED;
+  --radius:6px;
+  --shadow:0 1px 3px rgba(13,17,23,.08),0 4px 12px rgba(13,17,23,.05);
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Sora',sans-serif;background:var(--canvas);color:var(--ink);font-size:13px;line-height:1.5}
+
+/* CONFIG PANEL */
+.cfg-overlay{position:fixed;inset:0;background:rgba(13,17,23,.7);z-index:9900;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(4px)}
+.cfg-overlay.hidden{display:none}
+.cfg-panel{background:#fff;border-radius:12px;padding:32px;width:520px;max-width:94vw;box-shadow:0 24px 80px rgba(0,0,0,.3)}
+.cfg-logo{font-family:'Instrument Serif',serif;font-size:20px;color:var(--accent);margin-bottom:4px}
+.cfg-logo span{font-style:italic;color:var(--accent-mid)}
+.cfg-sub{font-size:12px;color:var(--ink-muted);margin-bottom:24px}
+.cfg-label{font-size:11.5px;font-weight:500;color:var(--ink-soft);margin-bottom:5px;display:block}
+.cfg-hint{font-size:11px;color:var(--ink-muted);margin-bottom:10px;line-height:1.5}
+.cfg-input{width:100%;border:1px solid var(--rule);border-radius:6px;padding:9px 12px;font-family:'DM Mono',monospace;font-size:12px;color:var(--ink);outline:none;margin-bottom:14px;transition:border .15s}
+.cfg-input:focus{border-color:var(--accent-mid);box-shadow:0 0 0 3px rgba(46,95,163,.1)}
+.cfg-row{display:flex;gap:10px}
+.cfg-row .cfg-input{flex:1}
+.cfg-connect{width:100%;padding:11px;background:var(--accent);color:#fff;border:none;border-radius:7px;font-family:'Sora',sans-serif;font-size:14px;font-weight:500;cursor:pointer;transition:background .15s;margin-top:4px}
+.cfg-connect:hover{background:var(--accent-mid)}
+.cfg-connect:disabled{background:#aaa;cursor:not-allowed}
+.cfg-error{background:var(--crit-bg);color:var(--crit);border:1px solid rgba(139,26,26,.2);border-radius:5px;padding:8px 12px;font-size:12px;margin-bottom:12px;display:none}
+.cfg-error.show{display:block}
+.cfg-link{font-size:11px;color:var(--accent-mid);text-align:center;display:block;margin-top:12px;cursor:pointer;text-decoration:underline}
+
+/* HEADER */
+.hdr{background:var(--accent);color:#fff;padding:18px 36px 15px;display:flex;align-items:center;justify-content:space-between;gap:16px;border-bottom:3px solid #0a1f3d}
+.hdr-eyebrow{font-family:'DM Mono',monospace;font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:rgba(255,255,255,.5);margin-bottom:3px}
+.hdr-title{font-family:'Instrument Serif',serif;font-size:22px;font-weight:400;color:#fff;line-height:1.15}
+.hdr-title span{font-style:italic;color:#9FB8E8}
+.hdr-meta{font-size:11px;color:rgba(255,255,255,.38);margin-top:3px;font-family:'DM Mono',monospace}
+.hdr-center{display:flex;gap:10px;align-items:center}
+.hdr-right{display:flex;gap:8px;align-items:center;flex-shrink:0}
+.stat{background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.12);border-radius:var(--radius);padding:7px 12px;text-align:center;min-width:60px}
+.stat-n{font-family:'Instrument Serif',serif;font-size:21px;line-height:1;color:#fff}
+.stat-l{font-size:9px;letter-spacing:.07em;text-transform:uppercase;color:rgba(255,255,255,.35);margin-top:1px;font-family:'DM Mono',monospace}
+.stat.ok .stat-n{color:#6DDC8E}.stat.late .stat-n{color:#F4CCCC}
+.stat.venc .stat-n{color:#FFD08A}.stat.crit .stat-n{color:#FF8080}
+.stat.warn .stat-n{color:#FFCC70}.stat.pend .stat-n{color:#9FB8E8}
+
+/* SAVE INDICATOR */
+.save-ind{display:flex;align-items:center;gap:6px;font-family:'DM Mono',monospace;font-size:10px;color:rgba(255,255,255,.55);white-space:nowrap}
+.save-dot{width:7px;height:7px;border-radius:50%;background:#6DDC8E;transition:background .3s;flex-shrink:0}
+.save-dot.saving{background:#FFCC70;animation:pulse .9s infinite}
+.save-dot.error{background:#FF8080}
+.save-dot.offline{background:#888}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+
+/* BOTONES HEADER */
+.hbtn{display:inline-flex;align-items:center;gap:5px;border:1px solid rgba(255,255,255,.2);border-radius:5px;padding:5px 11px;font-family:'DM Mono',monospace;font-size:10px;letter-spacing:.05em;text-transform:uppercase;cursor:pointer;background:rgba(255,255,255,.09);color:#fff;transition:all .15s;white-space:nowrap}
+.hbtn:hover{background:rgba(255,255,255,.18);border-color:rgba(255,255,255,.4)}
+.hbtn.danger:hover{background:rgba(200,40,40,.35);border-color:rgba(255,130,130,.4)}
+
+/* TOOLBAR */
+.toolbar{background:var(--canvas-alt);border-bottom:1px solid var(--rule);padding:7px 36px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;position:sticky;top:0;z-index:100;box-shadow:0 2px 6px rgba(13,17,23,.05)}
+.tb-lbl{font-family:'DM Mono',monospace;font-size:10px;color:var(--ink-muted);letter-spacing:.06em;text-transform:uppercase;white-space:nowrap}
+.toolbar select,.toolbar input[type=text]{border:1px solid var(--rule);border-radius:4px;padding:4px 8px;font-family:'Sora',sans-serif;font-size:12px;color:var(--ink);background:#fff;outline:none}
+.toolbar select:focus,.toolbar input[type=text]:focus{border-color:var(--accent-mid);box-shadow:0 0 0 2px rgba(46,95,163,.1)}
+.toolbar input[type=text]{width:200px}
+.fb{border:1px solid var(--rule);border-radius:4px;padding:4px 9px;font-family:'DM Mono',monospace;font-size:10px;letter-spacing:.05em;text-transform:uppercase;cursor:pointer;background:#fff;color:var(--ink-soft);transition:all .15s;white-space:nowrap}
+.fb:hover{background:var(--accent-lt);border-color:var(--accent-mid);color:var(--accent)}
+.fb.active{background:var(--accent);color:#fff;border-color:var(--accent)}
+.sep{width:1px;height:16px;background:var(--rule);flex-shrink:0}
+
+/* MAIN */
+.main{padding:18px 36px 60px}
+
+/* ALERTAS */
+.alertas{background:#fff;border:1px solid #E57373;border-left:4px solid var(--crit);border-radius:var(--radius);padding:11px 15px;margin-bottom:18px;box-shadow:var(--shadow)}
+.al-title{font-family:'DM Mono',monospace;font-size:10px;text-transform:uppercase;letter-spacing:.1em;color:var(--crit);margin-bottom:7px;font-weight:500}
+.al-row{display:flex;gap:9px;align-items:flex-start;padding:4px 0;border-bottom:1px solid var(--canvas-alt);font-size:11.5px}
+.al-row:last-child{border-bottom:none}
+.al-tag{font-family:'DM Mono',monospace;font-size:9px;background:var(--crit-bg);color:var(--crit);padding:2px 5px;border-radius:3px;white-space:nowrap;flex-shrink:0;font-weight:500}
+.al-desc{flex:1;color:var(--ink)}
+.al-fecha{font-family:'DM Mono',monospace;font-size:10px;color:var(--ink-muted);white-space:nowrap;flex-shrink:0}
+
+/* BLOQUES */
+.bloque{margin-bottom:20px}
+.bl-hdr{display:flex;align-items:center;gap:9px;margin-bottom:7px;cursor:pointer;user-select:none}
+.bl-tag{font-family:'DM Mono',monospace;font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--accent-mid);background:var(--accent-lt);border:1px solid rgba(46,95,163,.15);padding:2px 7px;border-radius:3px;white-space:nowrap}
+.bl-title{font-size:13px;font-weight:600;color:var(--ink)}
+.bl-cnt{font-family:'DM Mono',monospace;font-size:10px;color:var(--ink-muted);background:var(--canvas-alt);border:1px solid var(--rule);padding:1px 7px;border-radius:10px}
+.bl-arr{margin-left:auto;color:var(--ink-muted);font-size:15px;transition:transform .2s}
+.bloque.collapsed .bl-arr{transform:rotate(-90deg)}
+.bl-body{overflow:hidden;transition:max-height .25s ease}
+.bloque.collapsed .bl-body{max-height:0!important}
+
+/* TABLA */
+.tbl-wrap{border:1px solid var(--rule);border-radius:var(--radius);overflow:hidden;background:#fff;box-shadow:var(--shadow)}
+table{width:100%;border-collapse:collapse}
+thead tr{background:var(--ink)}
+thead th{font-family:'DM Mono',monospace;font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:rgba(255,255,255,.55);padding:7px 10px;text-align:left;white-space:nowrap;font-weight:500}
+.th-c{background:#1e1152!important;color:#C5A3FF!important}
+tbody tr{border-bottom:1px solid var(--canvas-alt);transition:background .1s}
+tbody tr:last-child{border-bottom:none}
+tbody tr:hover{background:var(--canvas)}
+tbody tr.hidden-row{display:none}
+td{padding:8px 10px;vertical-align:top}
+.td-n{font-family:'DM Mono',monospace;font-size:10px;color:var(--ink-muted);width:30px;padding-top:10px}
+.td-d{width:37%}.td-dm{font-size:12px;font-weight:500;color:var(--ink);line-height:1.4;margin-bottom:2px}
+.td-do{font-size:10.5px;color:var(--ink-muted);line-height:1.35}
+.td-s{width:68px;text-align:center}
+.td-f{width:100px;text-align:center}
+.fv{font-family:'DM Mono',monospace;font-size:11px;font-weight:500;color:var(--ink)}
+.fp{font-family:'DM Mono',monospace;font-size:9px;color:var(--perm);font-style:italic}
+.td-e{width:122px}.td-fu{font-family:'DM Mono',monospace;font-size:10px;color:var(--ink-muted);font-style:italic;width:106px}
+.td-c{width:146px;background:rgba(124,58,237,.04)}
+.cw{position:relative}
+.ci{border:1px dashed #C5A3FF;border-radius:4px;padding:4px 26px 4px 8px;font-family:'DM Mono',monospace;font-size:11px;color:var(--ink);background:rgba(124,58,237,.04);width:100%;cursor:pointer;transition:all .15s;outline:none}
+.ci:hover{border-color:var(--purple);background:rgba(124,58,237,.09)}
+.ci:focus{border-style:solid;border-color:var(--purple);background:#fff;box-shadow:0 0 0 2px rgba(124,58,237,.14)}
+.ci.ok{border-style:solid;border-color:var(--ok);background:var(--ok-bg);color:var(--ok);font-weight:500}
+.ci.late{border-style:solid;border-color:var(--late);background:var(--late-bg);color:var(--late);font-weight:500}
+.cc{position:absolute;right:5px;top:50%;transform:translateY(-50%);width:15px;height:15px;border-radius:50%;background:rgba(0,0,0,.18);border:none;cursor:pointer;font-size:10px;display:none;align-items:center;justify-content:center;color:#fff;line-height:1}
+.cw:hover .cc.vis{display:flex}
+
+/* BADGES */
+.badge{display:inline-flex;align-items:center;gap:4px;font-family:'DM Mono',monospace;font-size:10px;font-weight:500;padding:3px 8px;border-radius:4px;white-space:nowrap}
+.badge::before{content:'';width:5px;height:5px;border-radius:50%;flex-shrink:0}
+.b-ok{background:var(--ok-bg);color:var(--ok)}.b-ok::before{background:var(--ok)}
+.b-late{background:var(--late-bg);color:var(--late)}.b-late::before{background:var(--late)}
+.b-venc{background:var(--venc-bg);color:var(--venc)}.b-venc::before{background:#F59E0B}
+.b-crit{background:var(--crit-bg);color:var(--crit)}.b-crit::before{background:var(--crit)}
+.b-warn{background:var(--warn-bg);color:var(--warn)}.b-warn::before{background:#F59E0B}
+.b-pend{background:var(--pend-bg);color:var(--pend)}.b-pend::before{background:var(--accent-mid)}
+.b-perm{background:var(--perm-bg);color:var(--perm)}.b-perm::before{background:var(--perm)}
+.bs{display:inline-block;font-family:'DM Mono',monospace;font-size:9px;padding:2px 6px;border-radius:3px;font-weight:500}
+.bs1{background:#E6F5F0;color:#0F5240}.bs2{background:#FDF0E8;color:#7A3000}
+.bs3{background:#EBF0FA;color:#1B3A6B}.bsg{background:var(--canvas-alt);color:var(--ink-muted)}
+.bs12{background:#FEF3C7;color:#7A4800}
+
+/* TOAST */
+.toast{position:fixed;bottom:22px;right:22px;background:#1F3864;color:#fff;padding:9px 16px;border-radius:6px;font-family:'DM Mono',monospace;font-size:11px;box-shadow:0 4px 20px rgba(0,0,0,.25);transform:translateY(70px);opacity:0;transition:all .3s;z-index:9999;pointer-events:none;max-width:320px}
+.toast.show{transform:translateY(0);opacity:1}
+.toast.err{background:#8B1A1A}
+
+/* MODAL */
+.modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9000;display:none;align-items:center;justify-content:center}
+.modal-bg.open{display:flex}
+.modal{background:#fff;border-radius:10px;padding:26px;width:440px;max-width:90vw;box-shadow:0 20px 60px rgba(0,0,0,.2)}
+.modal h3{font-size:15px;font-weight:600;margin-bottom:7px;color:var(--ink)}
+.modal p{font-size:12.5px;color:var(--ink-soft);margin-bottom:18px;line-height:1.55}
+.modal-btns{display:flex;gap:10px;justify-content:flex-end}
+.mbtn{padding:7px 16px;border-radius:5px;border:1px solid var(--rule);cursor:pointer;font-size:12px;font-family:'Sora',sans-serif}
+.mbtn.confirm{background:#8B1A1A;color:#fff;border-color:#8B1A1A}
+.mbtn.cancel{background:#fff;color:var(--ink-soft)}
+
+footer{text-align:center;padding:12px;font-family:'DM Mono',monospace;font-size:10px;color:var(--ink-muted);border-top:1px solid var(--rule)}
+@media print{.toolbar,.cfg-overlay{display:none}.bloque.collapsed .bl-body{max-height:none!important}.bl-arr,.hbtn,.save-ind{display:none}}
+</style>
+</head>
+<body>
+
+<!-- PANEL DE CONFIGURACIÓN (primera vez) -->
+<div class="cfg-overlay" id="cfg-overlay">
+  <div class="cfg-panel">
+    <div class="cfg-logo">Concesión <span>Ruta del Itata</span> — Seguimiento de Hitos</div>
+    <div class="cfg-sub">Configure la conexión con su repositorio GitHub para guardar automáticamente.</div>
+
+    <div class="cfg-error" id="cfg-error"></div>
+
+    <label class="cfg-label">Usuario GitHub</label>
+    <div class="cfg-hint">Su nombre de usuario en GitHub (ej: <code>juan-perez</code>)</div>
+    <input class="cfg-input" id="cfg-owner" type="text" placeholder="usuario-github" autocomplete="off" spellcheck="false">
+
+    <label class="cfg-label">Repositorio</label>
+    <div class="cfg-hint">Nombre del repositorio donde se aloja la página (ej: <code>concesion-ruta-itata</code>)</div>
+    <input class="cfg-input" id="cfg-repo" type="text" placeholder="nombre-del-repositorio" autocomplete="off" spellcheck="false">
+
+    <label class="cfg-label">Personal Access Token (PAT)</label>
+    <div class="cfg-hint">Token con permiso <strong>repo</strong>. Créelo en GitHub → Settings → Developer settings → Personal access tokens → Tokens (classic). El token se guarda solo en este navegador.</div>
+    <input class="cfg-input" id="cfg-token" type="password" placeholder="ghp_xxxxxxxxxxxxxxxxxxxx" autocomplete="off" spellcheck="false">
+
+    <button class="cfg-connect" id="cfg-connect">Conectar y cargar datos</button>
+    <a class="cfg-link" id="cfg-help-link" href="https://docs.github.com/es/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens" target="_blank">¿Cómo crear un Personal Access Token?</a>
+  </div>
+</div>
+
+<!-- HEADER -->
+<header class="hdr">
+  <div>
+    <div class="hdr-eyebrow">D.S. N°169 — Ministerio de Obras Públicas</div>
+    <div class="hdr-title">Concesión <span>Acceso Norte a Concepción</span> — Ruta del Itata</div>
+    <div class="hdr-meta" id="meta-fecha"></div>
+  </div>
+  <div class="hdr-center" id="stats-hdr"></div>
+  <div class="hdr-right">
+    <div class="save-ind">
+      <div class="save-dot" id="save-dot"></div>
+      <span id="save-txt">Conectando…</span>
+    </div>
+    <button class="hbtn" id="btn-cfg" title="Cambiar configuración GitHub">⚙ Config</button>
+    <button class="hbtn" id="btn-csv" title="Exportar a CSV">⬇ CSV</button>
+    <button class="hbtn danger" id="btn-reset" title="Borrar todas las fechas">🗑</button>
+  </div>
+</header>
+
+<!-- TOOLBAR -->
+<div class="toolbar">
+  <span class="tb-lbl">Buscar:</span>
+  <input type="text" id="buscar" placeholder="Hito, área, descripción…">
+  <div class="sep"></div>
+  <span class="tb-lbl">Estado:</span>
+  <button class="fb active" data-estado="todos">Todos</button>
+  <button class="fb" data-estado="CUMPLIDO">✔ Cumplido</button>
+  <button class="fb" data-estado="RETRASADO">✖ Retrasado</button>
+  <button class="fb" data-estado="VENCIDO">⚠ Vencido</button>
+  <button class="fb" data-estado="URGENTE">🔴 Urgente</button>
+  <button class="fb" data-estado="PRÓXIMO">🟡 Próximo</button>
+  <button class="fb" data-estado="PENDIENTE">🔵 Pendiente</button>
+  <div class="sep"></div>
+  <span class="tb-lbl">Sector:</span>
+  <select id="filtro-sector">
+    <option value="todos">Todos</option>
+    <option value="S1">Sector 1</option>
+    <option value="S2">Sector 2</option>
+    <option value="S3">Sector 3</option>
+    <option value="General">General</option>
+  </select>
+  <div class="sep"></div>
+  <button class="fb" id="toggle-all">Colapsar todo</button>
+</div>
+
+<main class="main">
+  <div id="alertas-container"></div>
+  <div id="bloques-container"></div>
+</main>
+
+<footer>
+  Concesión Acceso Norte a Concepción · D.S. N°169, 14 mar 2025 ·
+  α S1/S2 = −12 m · α S3 = 0 m ·
+  <span id="fecha-gen"></span>
+</footer>
+
+<!-- MODAL RESET -->
+<div class="modal-bg" id="modal-reset">
+  <div class="modal">
+    <h3>¿Borrar todos los datos?</h3>
+    <p>Se eliminarán todas las fechas de cumplimiento y se guardará el estado vacío en GitHub. Esta acción no se puede deshacer.</p>
+    <div class="modal-btns">
+      <button class="mbtn cancel" id="modal-cancel">Cancelar</button>
+      <button class="mbtn confirm" id="modal-confirm">Sí, borrar todo</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ═══════════════════════════════════════════════════
+// DATOS DE LA CONCESIÓN
+// ═══════════════════════════════════════════════════
+const HITOS       = [{"n": 1, "area": "Corporativo", "desc": "Publicación D.S. N°169 en D.O. — inicio plazo concesión y etapa de construcción", "sector": "General", "fecha_str": "2025-03-14", "fecha_display": "14-Mar-2025", "fund": "Arts. 1.5.1 y 1.5.2", "obs": "Hito de origen. Todos los plazos se cuentan desde esta fecha."}, {"n": 2, "area": "Corporativo", "desc": "Constitución Sociedad Concesionaria ante Notario (plazo: 60 días desde D.O.)", "sector": "General", "fecha_str": "2025-05-13", "fecha_display": "13-May-2025", "fund": "Art. 1.4.11.1", "obs": "Efectivamente constituida el 14-mar-2025 (mismo día D.O.)."}, {"n": 3, "area": "Corporativo", "desc": "Suscripción y protocolización D.S. adjudicación — 4 transcripciones notariales", "sector": "General", "fecha_str": "2025-05-13", "fecha_display": "13-May-2025", "fund": "Art. 1.4.11.2", "obs": "60 días desde D.O. Protocolizar 1 ejemplar."}, {"n": 4, "area": "Corporativo", "desc": "Entrega copias protocolizadas (IF + Fiscalía MOP + Oficina de Partes)", "sector": "General", "fecha_str": "2025-05-28", "fecha_display": "28-May-2025", "fund": "Art. 1.4.11.2", "obs": "15 días adicionales desde protocolización (60+15 = 75 días desde D.O.)."}, {"n": 5, "area": "Corporativo", "desc": "Inscripción Sociedad Concesionaria en CMF", "sector": "General", "fecha_str": "2025-05-13", "fecha_display": "13-May-2025", "fund": "Art. 1.6.2", "obs": "60 días desde constitución. Acreditar ante el Inspector Fiscal."}, {"n": 6, "area": "Capital Social", "desc": "Pago inicial mínimo al constituir sociedad ($18.000 MM)", "sector": "General", "fecha_str": "2025-03-14", "fecha_display": "14-Mar-2025", "fund": "Art. 1.6.1.1.1", "obs": "Pago en el momento exacto de la constitución."}, {"n": 7, "area": "Capital Social", "desc": "Entero del saldo de capital social (completar $90.000 MM)", "sector": "General", "fecha_str": "2028-03-14", "fecha_display": "14-Mar-2028", "fund": "Art. 1.6.1.1.1", "obs": "36 meses desde constitución → 14-mar-2028. INCUMPLIMIENTO = EXTINCIÓN (art. 1.18.1.6 ii)."}, {"n": 8, "area": "Ambiental", "desc": "Consulta de Pertinencia S1 y S2 — presentación al Inspector Fiscal", "sector": "S1 y S2", "fecha_str": "2025-07-12", "fecha_display": "12-Jul-2025", "fund": "Art. 1.9.1.1.1", "obs": "120 días desde D.O. Resultado: SEA 21-nov-2025 → S1 y S2 NO requieren SEIA → α=-12."}, {"n": 9, "area": "Ambiental", "desc": "EIA/DIA Sector 3 — presentación al Inspector Fiscal (15 meses desde D.O.)", "sector": "S3", "fecha_str": "2026-06-14", "fecha_display": "14-Jun-2026", "fund": "Art. 1.9.1.1.1", "obs": "⚠️ Vence 14-jun-2026. IF tiene 30 días para observar. Verificar cumplimiento."}, {"n": 10, "area": "Ambiental", "desc": "EIA/DIA Sector 3 — ingreso al SEIA", "sector": "S3", "fecha_str": "2026-07-01", "fecha_display": "01-Jul-2026", "fund": "Art. 1.9.1.1.1", "obs": "Programado: 1-jul-2026. SC actúa como único titular ante Autoridad Ambiental."}, {"n": 11, "area": "Ambiental", "desc": "RCA Sector 3 — fecha estimada de obtención (18 meses tramitación)", "sector": "S3", "fecha_str": "2028-01-01", "fecha_display": "01-Jan-2028", "fund": "Art. 1.9.1.1.1", "obs": "Estimada: ene-2028. Sin RCA favorable, NO se pueden ejecutar obras del S3."}, {"n": 12, "area": "Garantías", "desc": "Garantía explotación obras preexistentes (UF 100.000) — entrega al IF", "sector": "General", "fecha_str": "2025-03-02", "fecha_display": "02-Mar-2025", "fund": "Art. 1.7.5.4.2.1", "obs": "Mínimo 30 días antes PSP preexistentes. Era condición habilitante para PSP del 1-abr-2025."}, {"n": 13, "area": "Garantías", "desc": "Garantía construcción S1 — inicial (UF 405.000)", "sector": "S1", "fecha_str": "2025-06-12", "fecha_display": "12-Jun-2025", "fund": "Art. 1.7.5.4.1.1", "obs": "90 días desde D.O. Mantener vigente hasta PSP S1 + 6 meses. Renovar ≥90 días antes del vencimiento."}, {"n": 14, "area": "Garantías", "desc": "Garantía construcción S1 — reemplazo al 30% avance (UF 283.000) [opcional]", "sector": "S1", "fecha_str": "2029-09-14", "fecha_display": "14-Sep-2029", "fund": "Art. 1.7.5.4.1.1 i", "obs": "Opcional. Al acreditar 30% avance S1. Nuevo monto: UF 283.000."}, {"n": 15, "area": "Garantías", "desc": "Garantía construcción S1 — reemplazo al 50% avance (UF 202.000) [opcional]", "sector": "S1", "fecha_str": "2030-03-14", "fecha_display": "14-Mar-2030", "fund": "Art. 1.7.5.4.1.1 ii", "obs": "Opcional. Al acreditar 50% avance S1. Nuevo monto: UF 202.000."}, {"n": 16, "area": "Garantías", "desc": "Garantía construcción S1 — reemplazo al 80% avance (UF 81.000) [opcional]", "sector": "S1", "fecha_str": "2030-09-14", "fecha_display": "14-Sep-2030", "fund": "Art. 1.7.5.4.1.1 iii", "obs": "Opcional. Al acreditar 80% avance S1. Nuevo monto: UF 81.000."}, {"n": 17, "area": "Garantías", "desc": "Garantía construcción S2 (UF 52.000) — entrega al IF", "sector": "S2", "fecha_str": "2026-09-02", "fecha_display": "02-Sep-2026", "fund": "Art. 1.7.5.4.1.2", "obs": "90 días antes inicio construcción S2. Condición indispensable para iniciar obras."}, {"n": 18, "area": "Garantías", "desc": "Garantía construcción S3 (UF 165.000) — entrega al IF", "sector": "S3", "fecha_str": "2028-04-02", "fecha_display": "02-Apr-2028", "fund": "Art. 1.7.5.4.1.3", "obs": "90 días antes inicio construcción S3."}, {"n": 19, "area": "Garantías", "desc": "Garantía explotación S2 (UF 50.000) — entrega al IF", "sector": "S2", "fecha_str": "2028-07-12", "fecha_display": "12-Jul-2028", "fund": "Art. 1.7.5.4.2.2", "obs": "≥20 días antes PSP S2 estimada. Sine qua non para que DGC otorgue PSP parcial S2."}, {"n": 20, "area": "Garantías", "desc": "Garantía explotación S1 (UF 380.000) — entrega al IF", "sector": "S1", "fecha_str": "2029-03-12", "fecha_display": "12-Mar-2029", "fund": "Art. 1.7.5.4.2.2", "obs": "≥20 días antes PSP S1 estimada. Sine qua non para que DGC otorgue PSP parcial S1."}, {"n": 21, "area": "Garantías", "desc": "Garantía explotación S3 (UF 166.000) — entrega al IF", "sector": "S3", "fecha_str": "2030-07-12", "fecha_display": "12-Jul-2030", "fund": "Art. 1.7.5.4.2.2", "obs": "≥20 días antes PSP S3 estimada. Fecha se ajusta con α S3 definitivo."}, {"n": 22, "area": "PGS", "desc": "PGS etapa explotación — presentación al Inspector Fiscal", "sector": "General", "fecha_str": "2025-06-12", "fecha_display": "12-Jun-2025", "fund": "Art. 1.9.1.4.2", "obs": "90 días desde D.O. (12-jun-2025). Verificar aprobación IF."}, {"n": 23, "area": "PGS", "desc": "PGS etapa explotación — aprobación e implementación obligatoria", "sector": "General", "fecha_str": "2025-09-10", "fecha_display": "10-Sep-2025", "fund": "Art. 1.9.1.4.2", "obs": "180 días desde D.O. (10-sep-2025). Si no aprobado, DGC podía ordenar cese PSP."}, {"n": 24, "area": "PGS", "desc": "PGS etapa construcción S1 y S2 — presentación al IF", "sector": "S1 y S2", "fecha_str": "2026-08-03", "fecha_display": "03-Aug-2026", "fund": "Art. 1.9.1.4.1", "obs": "120 días antes del más temprano entre inicio S1 e inicio S2 (ambos 1-dic-2026 → 2-ago-2026)."}, {"n": 25, "area": "PGS", "desc": "PGS etapa construcción S3 — presentación al IF", "sector": "S3", "fecha_str": "2028-03-03", "fecha_display": "03-Mar-2028", "fund": "Art. 1.9.1.4.1", "obs": "120 días antes inicio construcción S3."}, {"n": 26, "area": "Ingeniería", "desc": "Proyectos de Ingeniería de Detalle obras preexistentes (Tabla N°3-A) — presentación al IF", "sector": "General", "fecha_str": "2025-09-14", "fecha_display": "14-Sep-2025", "fund": "Art. 1.11.1.2", "obs": "6 meses desde D.O. (14-sep-2025). Verificar aprobación IF."}, {"n": 27, "area": "Ingeniería", "desc": "Programa de Ejecución de Obras S1 — aprobación IF antes de inicio construcción", "sector": "S1", "fecha_str": "2026-10-02", "fecha_display": "02-Oct-2026", "fund": "Art. 1.11.2.1.1", "obs": "Sin PEO aprobado, NO puede iniciarse construcción S1."}, {"n": 28, "area": "Ingeniería", "desc": "Programa de Ejecución de Obras S2 — aprobación IF antes de inicio construcción", "sector": "S2", "fecha_str": "2026-10-02", "fecha_display": "02-Oct-2026", "fund": "Art. 1.11.2.1.1", "obs": "Sin PEO aprobado, NO puede iniciarse construcción S2."}, {"n": 29, "area": "Ingeniería", "desc": "Programa de Ejecución de Obras S3 — aprobación IF antes de inicio construcción", "sector": "S3", "fecha_str": "2028-05-02", "fecha_display": "02-May-2028", "fund": "Art. 1.11.2.1.1", "obs": "Sin PEO aprobado, NO puede iniciarse construcción S3."}, {"n": 30, "area": "Construcción", "desc": "Ejecución obras preexistentes Tabla N°3-A (excepto Enlace Florida)", "sector": "General", "fecha_str": "2026-09-14", "fecha_display": "14-Sep-2026", "fund": "Art. 1.11.2 / Tabla N°3-A", "obs": "⚠️ URGENTE: 14-sep-2026 (~4,5 meses). Verificar avance con Inspector Fiscal."}, {"n": 31, "area": "Construcción", "desc": "Ejecución Enlace Florida — obra N°20 Tabla N°3-A (plazo especial 24 meses)", "sector": "General", "fecha_str": "2027-03-14", "fecha_display": "14-Mar-2027", "fund": "Art. 1.11.2 / Tabla N°3-A", "obs": "Plazo especial: 14-mar-2027."}, {"n": 32, "area": "Construcción", "desc": "Inicio construcción Sector 1 — fecha proyectada", "sector": "S1", "fecha_str": "2026-12-01", "fecha_display": "01-Dec-2026", "fund": "Art. 1.11.2.1.2", "obs": "Demora >60 días = extinción concesión (art. 1.18.1.6 ix). Requiere PEO aprobado y terrenos."}, {"n": 33, "area": "Construcción", "desc": "Inicio construcción Sector 2 — fecha proyectada", "sector": "S2", "fecha_str": "2026-12-01", "fecha_display": "01-Dec-2026", "fund": "Art. 1.11.2.1.2", "obs": "Demora >60 días = extinción concesión (art. 1.18.1.6 ix). Requiere PEO aprobado y terrenos."}, {"n": 34, "area": "Construcción", "desc": "Inicio construcción Sector 3 — fecha proyectada", "sector": "S3", "fecha_str": "2028-07-01", "fecha_display": "01-Jul-2028", "fund": "Art. 1.11.2.1.2", "obs": "No puede iniciarse sin RCA favorable S3. Demora >60 días = extinción."}, {"n": 35, "area": "Construcción", "desc": "PSP estimada Sector 1 (inicio S1 + plazo ejecución)", "sector": "S1", "fecha_str": "2029-04-01", "fecha_display": "01-Apr-2029", "fund": "Art. 1.11.2.1.4.2", "obs": "inicio S1 + plazo ejecución s1. verificar que no supere plazo máximo contractual (mes 84+α."}, {"n": 36, "area": "Construcción", "desc": "PSP estimada Sector 2 (inicio S2 + plazo ejecución)", "sector": "S2", "fecha_str": "2028-08-01", "fecha_display": "01-Aug-2028", "fund": "Art. 1.11.2.1.4.2", "obs": "inicio S2 + plazo ejecución s2. verificar que no supere plazo máximo contractual (mes 72+α."}, {"n": 37, "area": "Construcción", "desc": "PSP estimada Sector 3 (inicio S3 + plazo ejecución)", "sector": "S3", "fecha_str": "2030-08-01", "fecha_display": "01-Aug-2030", "fund": "Art. 1.11.2.1.4.2", "obs": "inicio S3 + plazo ejecución s3. verificar que no supere plazo máximo contractual (mes 90+α."}, {"n": 38, "area": "Decl. Avance S2", "desc": "S2 — Declaración avance ≥ 4%   [mes 57+α = mes 45]", "sector": "S2", "fecha_str": "2028-12-14", "fecha_display": "14-Dec-2028", "fund": "Tabla N°5: mes 57+α (=45)", "obs": "Con α=-12: 14-dic-2028. Desde inicio S2 (1-dic-2026): 24,5 meses disponibles."}, {"n": 39, "area": "Decl. Avance S2", "desc": "S2 — Declaración avance ≥ 30%  [mes 61+α = mes 49]", "sector": "S2", "fecha_str": "2029-04-14", "fecha_display": "14-Apr-2029", "fund": "Tabla N°5: mes 61+α (=49)", "obs": "Con α=-12: 14-abr-2029. Desde inicio S2: 28,5 meses."}, {"n": 40, "area": "Decl. Avance S2", "desc": "S2 — Declaración avance ≥ 50%  [mes 64+α = mes 52]", "sector": "S2", "fecha_str": "2029-07-14", "fecha_display": "14-Jul-2029", "fund": "Tabla N°5: mes 64+α (=52)", "obs": "Con α=-12: 14-jul-2029. Desde inicio S2: 31,5 meses. PSP estimada S2: EDATE(1-dic-2026,20) = ago-2028."}, {"n": 41, "area": "Decl. Avance S2", "desc": "S2 — Declaración avance ≥ 80%  [mes 68+α = mes 56]", "sector": "S2", "fecha_str": "2029-11-14", "fecha_display": "14-Nov-2029", "fund": "Tabla N°5: mes 68+α (=56)", "obs": "Con α=-12: 14-nov-2029."}, {"n": 42, "area": "Decl. Avance S1", "desc": "S1 — Declaración avance ≥ 4%   [mes 58+α = mes 46]", "sector": "S1", "fecha_str": "2029-01-14", "fecha_display": "14-Jan-2029", "fund": "Tabla N°5: mes 58+α (=46)", "obs": "Con α=-12: 14-ene-2029. Desde inicio S1 (1-dic-2026): 25,5 meses disponibles. ✅ Viable con nuevas fechas."}, {"n": 43, "area": "Decl. Avance S1", "desc": "S1 — Declaración avance ≥ 30%  [mes 66+α = mes 54]", "sector": "S1", "fecha_str": "2029-09-14", "fecha_display": "14-Sep-2029", "fund": "Tabla N°5: mes 66+α (=54)", "obs": "Con α=-12: 14-sep-2029. Desde inicio S1: 33,5 meses."}, {"n": 44, "area": "Decl. Avance S1", "desc": "S1 — Declaración avance ≥ 50%  [mes 72+α = mes 60]", "sector": "S1", "fecha_str": "2030-03-14", "fecha_display": "14-Mar-2030", "fund": "Tabla N°5: mes 72+α (=60)", "obs": "Con α=-12: 14-mar-2030. Desde inicio S1: 39,5 meses."}, {"n": 45, "area": "Decl. Avance S1", "desc": "S1 — Declaración avance ≥ 80%  [mes 78+α = mes 66]", "sector": "S1", "fecha_str": "2030-09-14", "fecha_display": "14-Sep-2030", "fund": "Tabla N°5: mes 78+α (=66)", "obs": "Con α=-12: 14-sep-2030. Desde inicio S1: 45,5 meses."}, {"n": 46, "area": "Decl. Avance S3", "desc": "S3 — Declaración avance ≥ 4%   [mes 59+α]", "sector": "S3", "fecha_str": "2030-02-14", "fecha_display": "14-Feb-2030", "fund": "Tabla N°5: mes 59+α", "obs": "Con α=0 (18m tramitación): 14-feb-2030. Inicio S3: 1-jul-2028 → 19 meses disponibles. ✅ Viable."}, {"n": 47, "area": "Decl. Avance S3", "desc": "S3 — Declaración avance ≥ 30%  [mes 68+α]", "sector": "S3", "fecha_str": "2030-11-14", "fecha_display": "14-Nov-2030", "fund": "Tabla N°5: mes 68+α", "obs": "Con α=0: 14-nov-2030. Desde inicio S3: 28 meses."}, {"n": 48, "area": "Decl. Avance S3", "desc": "S3 — Declaración avance ≥ 50%  [mes 76+α]", "sector": "S3", "fecha_str": "2031-07-14", "fecha_display": "14-Jul-2031", "fund": "Tabla N°5: mes 76+α", "obs": "Con α=0: 14-jul-2031. Desde inicio S3: 36 meses."}, {"n": 49, "area": "Decl. Avance S3", "desc": "S3 — Declaración avance ≥ 80%  [mes 83+α]", "sector": "S3", "fecha_str": "2032-02-14", "fecha_display": "14-Feb-2032", "fund": "Tabla N°5: mes 83+α", "obs": "Con α=0: 14-feb-2032. Desde inicio S3: 43 meses."}, {"n": 50, "area": "PSP Máx. Contractual", "desc": "PSP máxima contractual S2 [mes 72+α = mes 60]", "sector": "S2", "fecha_str": "2030-03-14", "fecha_display": "14-Mar-2030", "fund": "Tabla N°6: mes 72+α (=60)", "obs": "Con α=-12: 14-mar-2030. PSP estimada S2: ago-2028 → margen holgado de ~19 meses. ✅"}, {"n": 51, "area": "PSP Máx. Contractual", "desc": "PSP máxima contractual S1 [mes 84+α = mes 72]", "sector": "S1", "fecha_str": "2031-03-14", "fecha_display": "14-Mar-2031", "fund": "Tabla N°6: mes 84+α (=72)", "obs": "Con α=-12: 14-mar-2031. PSP estimada S1: abr-2029 → margen holgado de ~23 meses. ✅"}, {"n": 52, "area": "PSP Máx. Contractual", "desc": "PSP máxima contractual S3 [mes 90+α]", "sector": "S3", "fecha_str": "2032-09-14", "fecha_display": "14-Sep-2032", "fund": "Tabla N°6: mes 90+α", "obs": "Con α=0 (18m): 14-sep-2032. PSP estimada S3: ago-2030 → margen holgado de ~25 meses. ✅"}, {"n": 53, "area": "Sistema Cobro", "desc": "Fin sistema cobro inicial — peaje manual (último día mes 17)", "sector": "General", "fecha_str": "2026-08-13", "fecha_display": "13-Aug-2026", "fund": "Art. 1.14.1.1", "obs": "31-ago-2026. Plazas Agua Amarilla, Nueva Aldea y Rafael en cobro manual hasta esa fecha."}, {"n": 54, "area": "Sistema Cobro", "desc": "Inicio sistema cobro intermedio MLFF — pórtico Dm 59.400-59.650 (primer día mes 18)", "sector": "General", "fecha_str": "2026-08-14", "fecha_display": "14-Aug-2026", "fund": "Art. 1.14.1.2", "obs": "⚠️ URGENTE: 1-sep-2026 (~4 meses). Instalación del pórtico electrónico debe completarse antes."}, {"n": 55, "area": "Autocontrol", "desc": "Plan de Autocontrol ISO 9001:2015 — presentación al Inspector Fiscal", "sector": "General", "fecha_str": "2025-06-30", "fecha_display": "30-Jun-2025", "fund": "Art. 1.12.9", "obs": "90 días desde PSP preexistentes (1-abr-2025) → vencía 30-jun-2025. Verificar aprobación IF."}, {"n": 56, "area": "Autocontrol", "desc": "Actualización equipamiento emergencias área provisional", "sector": "General", "fecha_str": "2025-09-10", "fecha_display": "10-Sep-2025", "fund": "Art. 2.2.2.19", "obs": "180 días desde D.O. (10-sep-2025). Verificar cumplimiento."}, {"n": 57, "area": "Seguros RC", "desc": "Seguro RC daños a terceros — etapa construcción (UF 55.500 mín.) — contratación y entrega al IF", "sector": "General", "fecha_str": "2026-10-02", "fecha_display": "02-Oct-2026", "fund": "Art. 1.7.6.4.1.1", "obs": "Plazo: 30 días desde que el Concesionario presente al IF el PRIMER PEO (art. 1.11.2.1.1). CONDICIÓN HABILITANTE: sin póliza aprobada NO puede iniciars"}, {"n": 58, "area": "Seguros RC", "desc": "Seguro RC daños a terceros — etapa construcción — renovación (30 días antes vencimiento)", "sector": "General", "fecha_str": "permanente", "fecha_display": "Vigente todo el plazo concesión", "fund": "Art. 1.7.6.4.1.1", "obs": "Renovar 30 días antes de la expiración de la póliza anterior. Las pólizas renovadas deben cumplir las mismas condiciones, incluyendo pago al contado."}, {"n": 59, "area": "Seguros RC", "desc": "Seguro RC daños a terceros — etapa explotación (UF 55.500 mín.) — contratación y entrega al IF", "sector": "General", "fecha_str": "2025-03-02", "fecha_display": "02-Mar-2025", "fund": "Art. 1.7.6.4.1.2", "obs": "Plazo: 30 días ANTES de la PSP obras preexistentes (1-abr-2025). Era condición habilitante para la PSP. Monto mínimo: UF 55.500. Vigencia mínima: 1 añ"}, {"n": 60, "area": "Seguros RC", "desc": "Seguro RC daños a terceros — explotación — endoso Sector 2 (incorporar riesgos S2 a la póliza existente)", "sector": "S2", "fecha_str": "2028-08-01", "fecha_display": "01-Aug-2028", "fund": "Art. 1.7.6.4.1.2", "obs": "Endoso debe entregarse al IF JUNTO con la solicitud de PSP parcial S2. Sin endoso aprobado el DGC no puede otorgar la PSP parcial S2."}, {"n": 61, "area": "Seguros RC", "desc": "Seguro RC daños a terceros — explotación — endoso Sector 1 (incorporar riesgos S1 a la póliza existente)", "sector": "S1", "fecha_str": "2029-04-01", "fecha_display": "01-Apr-2029", "fund": "Art. 1.7.6.4.1.2", "obs": "Endoso debe entregarse al IF JUNTO con la solicitud de PSP parcial S1. Sin endoso aprobado el DGC no puede otorgar la PSP parcial S1."}, {"n": 62, "area": "Seguros RC", "desc": "Seguro RC daños a terceros — explotación — endoso Sector 3 (incorporar riesgos S3 a la póliza existente)", "sector": "S3", "fecha_str": "2030-08-01", "fecha_display": "01-Aug-2030", "fund": "Art. 1.7.6.4.1.2", "obs": "Endoso debe entregarse al IF JUNTO con la solicitud de PSP parcial S3. Sin endoso aprobado el DGC no puede otorgar la PSP parcial S3."}, {"n": 63, "area": "Seguros RC", "desc": "Seguro RC daños a terceros — explotación — renovación anual (30 días antes vencimiento)", "sector": "General", "fecha_str": "permanente", "fecha_display": "Vigente todo el plazo concesión", "fund": "Art. 1.7.6.4.1.2", "obs": "Renovar 30 días antes de la expiración. Obligación vigente durante TODO el plazo de la concesión. Incumplimiento = multa (art. 1.16.6) + cobro de gara"}, {"n": 64, "area": "Seguros Catástrofe", "desc": "Seguro por catástrofe — etapa construcción — contratación y entrega al IF", "sector": "General", "fecha_str": "2026-10-02", "fecha_display": "02-Oct-2026", "fund": "Art. 1.7.6.4.2.1", "obs": "Plazo: 30 días desde presentación del PRIMER PEO al IF (mismo plazo que RC construcción). Monto: valor total obras preexistentes y nuevas. Cubre riesg"}, {"n": 65, "area": "Seguros Catástrofe", "desc": "Seguro por catástrofe — etapa construcción — Estimación de Pérdida Máxima (tercero independiente)", "sector": "General", "fecha_str": "2026-10-02", "fecha_display": "02-Oct-2026", "fund": "Art. 1.7.6.4.2.3", "obs": "Debe entregarse JUNTO con la póliza y en cada renovación. La estimación debe ser preparada por un tercero independiente. Incumplimiento = multa 300 UT"}, {"n": 66, "area": "Seguros Catástrofe", "desc": "Seguro por catástrofe — etapa construcción — renovación (30 días antes vencimiento)", "sector": "General", "fecha_str": "permanente", "fecha_display": "Vigente todo el plazo concesión", "fund": "Art. 1.7.6.4.2.3", "obs": "Renovar 30 días antes del vencimiento, junto con nueva Estimación de Pérdida Máxima. Pólizas renovadas deben cumplir las mismas condiciones, incluyend"}, {"n": 67, "area": "Seguros Catástrofe", "desc": "Seguro por catástrofe — etapa explotación — contratación y entrega al IF", "sector": "General", "fecha_str": "2025-03-02", "fecha_display": "02-Mar-2025", "fund": "Art. 1.7.6.4.2.2", "obs": "Plazo: 30 días ANTES de la PSP obras preexistentes (1-abr-2025). Era condición habilitante para la PSP. Monto: valor de reposición de la obra concesio"}, {"n": 68, "area": "Seguros Catástrofe", "desc": "Seguro por catástrofe — explotación — endoso Sector 2 (incorporar riesgos S2 a la póliza existente)", "sector": "S2", "fecha_str": "2028-08-01", "fecha_display": "01-Aug-2028", "fund": "Art. 1.7.6.4.2.2", "obs": "Endoso debe entregarse al IF JUNTO con la solicitud de PSP parcial S2. Sin endoso aprobado el DGC no puede otorgar la PSP parcial S2."}, {"n": 69, "area": "Seguros Catástrofe", "desc": "Seguro por catástrofe — explotación — endoso Sector 1 (incorporar riesgos S1 a la póliza existente)", "sector": "S1", "fecha_str": "2029-04-01", "fecha_display": "01-Apr-2029", "fund": "Art. 1.7.6.4.2.2", "obs": "Endoso debe entregarse al IF JUNTO con la solicitud de PSP parcial S1. Sin endoso aprobado el DGC no puede otorgar la PSP parcial S1."}, {"n": 70, "area": "Seguros Catástrofe", "desc": "Seguro por catástrofe — explotación — endoso Sector 3 (incorporar riesgos S3 a la póliza existente)", "sector": "S3", "fecha_str": "2030-08-01", "fecha_display": "01-Aug-2030", "fund": "Art. 1.7.6.4.2.2", "obs": "Endoso debe entregarse al IF JUNTO con la solicitud de PSP parcial S3. Sin endoso aprobado el DGC no puede otorgar la PSP parcial S3."}, {"n": 71, "area": "Seguros Catástrofe", "desc": "Seguro por catástrofe — explotación — Estimación de Pérdida Máxima (tercero independiente) — inicial y renovaciones", "sector": "General", "fecha_str": "2025-03-02", "fecha_display": "02-Mar-2025", "fund": "Art. 1.7.6.4.2.3", "obs": "Debe entregarse JUNTO con la póliza y en cada renovación. Preparada por un tercero independiente. Incumplimiento = multa 300 UTM (cada vez) + 100 UTM "}, {"n": 72, "area": "Seguros Catástrofe", "desc": "Seguro por catástrofe — explotación — renovación anual (30 días antes vencimiento)", "sector": "General", "fecha_str": "permanente", "fecha_display": "Vigente todo el plazo concesión", "fund": "Art. 1.7.6.4.2.3", "obs": "Renovar 30 días antes del vencimiento, junto con nueva Estimación de Pérdida Máxima. Obligación vigente durante TODO el plazo de la concesión. Incumpl"}, {"n": 73, "area": "SAU Fase 1", "desc": "Especificaciones plataforma provisional SAU — presentación al Inspector Fiscal", "sector": "General", "fecha_str": "2025-04-13", "fecha_display": "13-Apr-2025", "fund": "Art. 1.12.10", "obs": "30 días desde constitución SC (14-mar-2025) → 13-abr-2025. Debe incluir: canal presencial provisorio, canal telefónico y portal web. El IF puede formu"}, {"n": 74, "area": "SAU Fase 1", "desc": "Plataforma Provisional SAU — puesta en operación (Fase 1 explotación)", "sector": "General", "fecha_str": "2025-07-12", "fecha_display": "12-Jul-2025", "fund": "Art. 1.12.10 / Art. 2.4.5.3.1", "obs": "120 días desde constitución SC (14-mar-2025) → 12-jul-2025. Debe estar operativa ANTES de que se cumpla ese plazo y mantenerse durante toda la Fase 1."}, {"n": 75, "area": "SAU Fase 1", "desc": "SAU Fase 1 — prestación de servicios informativos de concesión anterior (tarifas y otros)", "sector": "General", "fecha_str": "2025-04-01", "fecha_display": "01-Apr-2025", "fund": "Art. 1.12.10", "obs": "Desde la PSP obras preexistentes (1-abr-2025) hasta que esté operativa la plataforma definitiva. Debe prestar al menos los mismos servicios que presta"}, {"n": 76, "area": "SAU Fase 1", "desc": "SAU Fase 1 — operación canal presencial provisorio (horario mínimo L-V 8:30-18:00 / Sáb 8:30-14:00)", "sector": "General", "fecha_str": "permanente", "fecha_display": "Permanente", "fund": "Art. 2.4.5.3.1", "obs": "Puede ubicarse en oficinas administrativas de la concesión anterior. Debe contar con Libro de Sugerencias, Consultas y Reclamos de libre acceso. Incum"}, {"n": 77, "area": "SAU Fase 1", "desc": "SAU Fase 1 — operación canal telefónico (24/7, ≥99,5% llamadas atendidas en ≤20 seg.)", "sector": "General", "fecha_str": "permanente", "fecha_display": "Permanente", "fund": "Art. 2.4.5.3.1 / Art. 2.4.5.3, iii", "obs": "Estándar: ≥99,5% de llamadas atendidas con tiempo espera ≤20 segundos. Señales informativas en accesos, plazas de peaje y salidas deben indicar el núm"}, {"n": 78, "area": "SAU Fase 1", "desc": "SAU Fase 1 — operación portal web (disponibilidad ≥99,5% minutos del mes)", "sector": "General", "fecha_str": "permanente", "fecha_display": "Permanente", "fund": "Art. 2.4.5.3.1 / Art. 2.4.5.3, ii", "obs": "Portal web con manejo de reclamos/solicitudes escrito o vía ejecutivo. Dirección web publicada en señales informativas en la vía. Incumplimiento = mul"}, {"n": 79, "area": "SAU Fase 1", "desc": "SAU Fase 1 — Sistema de Sugerencias, Consultas y Reclamos (SCR): numeración correlativa automática, copia al usuario, en", "sector": "General", "fecha_str": "permanente", "fecha_display": "Permanente", "fund": "Art. 2.4.5.3.1", "obs": "Todos los canales deben registrar: fecha, hora, tipo de requerimiento, detalle, identificación y datos de contacto del usuario. Atención telefónica: g"}, {"n": 80, "area": "SAU Fase 1", "desc": "SAU Fase 1 — Informe semestral análisis SCR — entrega al Inspector Fiscal", "sector": "General", "fecha_str": "permanente", "fecha_display": "Semestral (1er día hábil de c/semes", "fund": "Art. 2.4.5.3.1", "obs": "Primer día hábil del semestre siguiente al período analizado (ej: 2 ene y 1 jul de cada año). Debe incluir: tipificación de requerimientos, causales d"}, {"n": 81, "area": "SAU Fase 2 — Transición", "desc": "Especificaciones plataforma definitiva SAU — presentación al IF (60 días antes de solicitud última PSP parcial)", "sector": "General", "fecha_str": "2028-06-02", "fecha_display": "02-Jun-2028", "fund": "Art. 1.12.10", "obs": "60 días antes de la fecha estimada para solicitar la ÚLTIMA PSP parcial (la más tardía entre S1, S2 y S3). Con PSP estimadas S1=abr-2029, S2=ago-2028,"}, {"n": 82, "area": "SAU Fase 2", "desc": "Plataforma Definitiva SAU — puesta en operación (desde PSP totalidad de obras)", "sector": "General", "fecha_str": "2030-08-01", "fecha_display": "01-Aug-2030", "fund": "Art. 1.12.10 / Art. 2.4.5.3.2", "obs": "Desde la PSP de la totalidad de las obras (última PSP parcial, estimada ago-2030). Debe cumplir todas las especificaciones del art. 2.2.3.3.4.3 y subo"}, {"n": 83, "area": "SAU Fase 2", "desc": "SAU Fase 2 — canal presencial definitivo (oficinas habilitadas, L-V 8:30-18:00 / Sáb 8:30-14:00)", "sector": "General", "fecha_str": "permanente", "fecha_display": "Permanente", "fund": "Art. 2.4.5.3.2", "obs": "Una o más oficinas especialmente habilitadas. Diseño y ubicación aprobados previamente por el IF (si difiere de la ubicación de la concesión anterior)"}, {"n": 84, "area": "SAU Fase 2", "desc": "SAU Fase 2 — canal telefónico definitivo (24/7 todos los días del año)", "sector": "General", "fecha_str": "permanente", "fecha_display": "Permanente", "fund": "Art. 2.4.5.3.2", "obs": "Número de Central de Llamados publicado en señales informativas en accesos y salidas de la vía. Incumplimiento = multa 100 UTM por vez (art. 1.16.6, m"}, {"n": 85, "area": "SAU Fase 2", "desc": "SAU Fase 2 — canal web definitivo (disponible 24/7, grabación de llamadas telefónicas)", "sector": "General", "fecha_str": "permanente", "fecha_display": "Permanente", "fund": "Art. 2.4.5.3.2", "obs": "Canal web auditado y controlable por el IF en cualquier momento. Auditable también si el servicio está externalizado. Incumplimiento = multa 100 UTM p"}, {"n": 86, "area": "SAU Fase 2", "desc": "SAU Fase 2 — Servicios de Atención Comercial presenciales, telefónicos y virtuales", "sector": "General", "fecha_str": "permanente", "fecha_display": "Permanente", "fund": "Art. 2.2.3.3.4.3.6", "obs": "Servicios mínimos: reclamos y consultas, copias de documentos de cobro, canales de recaudación, información de infractores, repactación de deudas, cie"}, {"n": 87, "area": "SAU Fase 2", "desc": "SAU Fase 2 — Informe semestral análisis SCR — entrega al Inspector Fiscal", "sector": "General", "fecha_str": "permanente", "fecha_display": "Semestral (1er día hábil de c/semes", "fund": "Art. 2.4.5.3.2", "obs": "Primer día hábil del semestre siguiente. Contenido: tipificación de requerimientos, causales de reclamos, propuestas y medidas de mejora. Los reclamos"}, {"n": 88, "area": "SAU Fase 2", "desc": "SAU Fase 2 — medición de 8 indicadores de estándares de servicio de atención a usuarios", "sector": "General", "fecha_str": "permanente", "fecha_display": "Permanente", "fund": "Art. 2.4.5.3.2", "obs": "Desde PSP totalidad de obras hasta extinción concesión. 8 indicadores: 5 de atención de usuarios + 3 de disponibilidad de canales. Resultados reportad"}, {"n": 89, "area": "PIDU", "desc": "Programa de Información y Difusión a los Usuarios (PIDU) etapa explotación — presentación al IF", "sector": "General", "fecha_str": "2025-03-02", "fecha_display": "02-Mar-2025", "fund": "Art. 1.9.2.2.2", "obs": "30 días antes de la PSP preexistentes. Debe considerar difusión de canales SAU (número telefónico, dirección web, ubicación canal presencial). Su impl"}, {"n": 90, "area": "Oficina IF — Construcción", "desc": "Oficina PROVISORIA IF — entrega (≥100 m², equipada con 1 PC, impresora, WiFi, mobiliario)", "sector": "General", "fecha_str": "2025-05-13", "fecha_display": "13-May-2025", "fund": "Art. 1.11.2.2 / Art. 2.3.2", "obs": "60 días desde constitución SC (14-mar-2025) → vencía 13-may-2025. Superficie mínima 100 m². Equipamiento: 1 PC última generación, AutoCAD, Acrobat, pl"}, {"n": 91, "area": "Oficina IF — Construcción", "desc": "Oficina DEFINITIVA IF etapa construcción — entrega (≥200 m², sala reuniones 20 personas, 2 PCs, equipamiento completo)", "sector": "General", "fecha_str": "2026-10-02", "fecha_display": "02-Oct-2026", "fund": "Art. 1.11.2.2 / Art. 2.3.2", "obs": "60 días ANTES del primer inicio de construcción (S1 y S2 ambos 1-dic-2026 → vence 2-oct-2026). Superficie mínima 200 m², sala reuniones 20 personas, ≥"}, {"n": 92, "area": "Oficina IF — Construcción", "desc": "Renovación equipamiento computacional IF (2 PCs + impresora) — cada 3 años", "sector": "General", "fecha_str": "permanente", "fecha_display": "Cada 3 años desde entrega oficina d", "fund": "Art. 2.3.2", "obs": "Los equipos computacionales deben renovarse al menos una vez cada 3 años. Primera renovación estimada: oct-2029 (3 años desde oct-2026). Marcar con fe"}, {"n": 93, "area": "Oficina IF — Construcción", "desc": "Depósito de Bienes Fiscales — puesta a disposición del MOP", "sector": "General", "fecha_str": "permanente", "fecha_display": "60 días desde requerimiento IF", "fund": "Art. 2.3.3", "obs": "El Concesionario debe poner a disposición del MOP el Depósito de Bienes Fiscales a más tardar 60 días después de requerido por el inspector fiscal med"}, {"n": 94, "area": "Oficina IF — Explotación F1", "desc": "Oficina central IF Fase 1 — entrega y operación (≥300 m², radio ≤8 km del Dm 75.120 Ruta 152)", "sector": "General", "fecha_str": "2025-04-16", "fecha_display": "16-Apr-2025", "fund": "Art. 1.12.8 / Art. 2.4.7", "obs": "Debe entregarse al inicio de la fase 1 de explotación. Conforme al art. 1.12.8 la entrega se efectúa junto a las instalaciones de inicio de fase 1 (15"}, {"n": 95, "area": "Oficina IF — Explotación F1", "desc": "Bodega para almacenamiento de información IF Fase 1 — entrega (≥30 m², estanterías móviles, sistema anti-incendios gases", "sector": "General", "fecha_str": "2025-04-16", "fecha_display": "16-Apr-2025", "fund": "Art. 1.12.8 / Art. 2.4.7", "obs": "Superficie mínima 30 m². Debe incluir archivo con sistema de estanterías móviles y sistema de detección y control de incendios basado en gases nobles "}, {"n": 96, "area": "Oficina IF — Explotación F1", "desc": "Equipamiento computacional IF Fase 1 — provisión y mantención (2 PCs, impresora láser, WiFi, generador, teléfono satelit", "sector": "General", "fecha_str": "2025-04-16", "fecha_display": "16-Apr-2025", "fund": "Art. 1.12.8 / Art. 2.4.7", "obs": "2 PCs última generación (AutoCAD, Acrobat, planilla, editor, internet exclusivo, WiFi), impresora láser ≥20ppm, protección voltaje, teléfono, generado"}, {"n": 97, "area": "Oficina IF — Explotación F1", "desc": "Renovación equipamiento computacional IF Fase 1 — cada 3 años", "sector": "General", "fecha_str": "permanente", "fecha_display": "Cada 3 años desde entrega oficina F", "fund": "Art. 2.4.7", "obs": "Primera renovación estimada: ~abr-2028 (3 años desde abr-2025). Marcar con fecha efectiva en columna F al momento de la renovación."}, {"n": 98, "area": "Oficina IF — Explotación F2", "desc": "Oficina central IF Fase 2 — entrega y operación (dentro del Área de Concesión, visión directa a la ruta)", "sector": "General", "fecha_str": "2029-04-01", "fecha_display": "01-Apr-2029", "fund": "Art. 1.12.8 / Art. 2.4.7", "obs": "Ubicación: dentro del Área de Concesión, con visión directa a la ruta. La ubicación debe ser aprobada por el IF en forma previa al desarrollo del proy"}, {"n": 99, "area": "Oficina IF — Explotación F2", "desc": "Equipamiento computacional IF Fase 2 — provisión, mantención y renovación cada 3 años", "sector": "General", "fecha_str": "2029-04-01", "fecha_display": "01-Apr-2029", "fund": "Art. 1.12.8 / Art. 2.4.7", "obs": "2 PCs última generación, impresora láser ≥20ppm, WiFi, generador eléctrico, teléfono satelital. Renovar ≥ cada 3 años. Vigente hasta extinción de la c"}, {"n": 100, "area": "BIM", "desc": "Gestor BIM — designación y presentación al Inspector Fiscal (aprobación previa)", "sector": "General", "fecha_str": "2025-05-13", "fecha_display": "13-May-2025", "fund": "Art. 1.11.1.4.1", "obs": "60 días desde inicio plazo concesión (14-mar-2025) → 13-may-2025. El IF tiene 10 días para aprobar o rechazar fundadamente. Si rechaza, el Concesionar"}, {"n": 101, "area": "BIM", "desc": "Plan de Ejecución BIM (PEB) — presentación al Inspector Fiscal", "sector": "General", "fecha_str": "2025-06-12", "fecha_display": "12-Jun-2025", "fund": "Art. 1.11.1.4.4", "obs": "90 días desde inicio plazo concesión (14-mar-2025) → 12-jun-2025. El IF tiene 20 días para revisar; si hay observaciones, SC tiene 20 días para correg"}, {"n": 102, "area": "BIM", "desc": "Modelos Tridimensionales — entrega al IF junto con Proyectos de Ingeniería de Detalle (formato nativo + IFC)", "sector": "General", "fecha_str": "2025-09-14", "fecha_display": "14-Sep-2025", "fund": "Art. 1.11.1.4 / Art. 2.2.2.27.5", "obs": "Plazo: junto con los Proyectos de Ingeniería de Detalle (6 meses desde D.O. para obras preexistentes Tabla N°3-A). Entregar en formato nativo Y en for"}, {"n": 103, "area": "BIM", "desc": "Informe mensual 'Estado del Arte de los Usos BIM' — entrega al IF (primeros 5 días del mes siguiente)", "sector": "General", "fecha_str": "permanente", "fecha_display": "Mensual (primeros 5 días de c/mes) ", "fund": "Art. 1.11.1.4.3", "obs": "Desde el mes siguiente a la aprobación del PEB. Entrega: primeros 5 días del mes siguiente al período informado. Contenido: diseños, avances, actualiz"}, {"n": 104, "area": "BIM", "desc": "Prototipo BIM — desarrollo para Uso BIM 'Gestión de Activos' etapa explotación", "sector": "General", "fecha_str": "2030-08-01", "fecha_display": "01-Aug-2030", "fund": "Art. 2.2.2.27.6", "obs": "El prototipo BIM es el desarrollo del BIM para la Gestión de Activos en la etapa de explotación, basado en el BIM construido durante la etapa de const"}, {"n": 105, "area": "BIM", "desc": "Disponibilidad sistema BIM ≥99,5% de los minutos del mes — desde inicio construcción hasta extinción concesión", "sector": "General", "fecha_str": "2026-12-01", "fecha_display": "01-Dec-2026", "fund": "Art. 2.2.2.27.7.1", "obs": "Desde el inicio de la construcción de la primera obra hasta la extinción de la concesión. Aplica a todos los módulos de trabajo y accesos (web, escrit"}, {"n": 106, "area": "BIM", "desc": "Registro de propiedad intelectual del Sistema BIM a nombre del MOP — acreditación al IF", "sector": "General", "fecha_str": "2030-08-01", "fecha_display": "01-Aug-2030", "fund": "Art. 2.2.2.27.7.4", "obs": "El 'Sistema BIM – Concesión Acceso Norte a Concepción', sus programas fuente, documentación y manuales deben registrarse en el Registro de Propiedad I"}, {"n": 107, "area": "BIM", "desc": "PEB actualizado — entrega al IF previo a la Puesta en Servicio Definitiva de las obras", "sector": "General", "fecha_str": "2030-08-01", "fecha_display": "01-Aug-2030", "fund": "Art. 1.11.1.4.4", "obs": "Previo a la PSD, la SC debe entregar el PEB actualizado que refleje todos los cambios implementados durante su desarrollo. Mismos plazos de revisión q"}];
+const BLOQUES_MAP = {"Corporativo": {"num": "B01", "label": "Obligaciones Corporativas"}, "Capital Social": {"num": "B02", "label": "Capital Social"}, "Ambiental": {"num": "B03", "label": "Gestión Ambiental y Permisos"}, "Garantías": {"num": "B04", "label": "Garantías"}, "PGS": {"num": "B05", "label": "Programa de Gestión Sustentable"}, "Ingeniería": {"num": "B06", "label": "Ingeniería y PEO"}, "Construcción": {"num": "B07", "label": "Ejecución de Obras"}, "Decl. Avance S2": {"num": "B08a", "label": "Declaraciones de Avance — S2"}, "Decl. Avance S1": {"num": "B08b", "label": "Declaraciones de Avance — S1"}, "Decl. Avance S3": {"num": "B08c", "label": "Declaraciones de Avance — S3"}, "PSP Máx. Contractual": {"num": "B09", "label": "PSP Máximas Contractuales"}, "Sistema Cobro": {"num": "B10", "label": "Sistema de Cobro de Tarifas"}, "Autocontrol": {"num": "B11", "label": "Autocontrol y Calidad"}, "Seguros RC": {"num": "B12a", "label": "Seguros RC — Daños a Terceros"}, "Seguros Catástrofe": {"num": "B12b", "label": "Seguros por Catástrofe"}, "SAU Fase 1": {"num": "B13a", "label": "Atención de Usuarios — Fase 1"}, "SAU Fase 2 — Transición": {"num": "B13b", "label": "Atención de Usuarios — Transición"}, "SAU Fase 2": {"num": "B13c", "label": "Atención de Usuarios — Fase 2"}, "PIDU": {"num": "B13d", "label": "PIDU"}, "Oficina IF — Construcción": {"num": "B14a", "label": "Oficina Inspector Fiscal — Construcción"}, "Oficina IF — Explotación F1": {"num": "B14b", "label": "Oficina Inspector Fiscal — Fase 1"}, "Oficina IF — Explotación F2": {"num": "B14c", "label": "Oficina Inspector Fiscal — Fase 2"}, "BIM": {"num": "B15", "label": "Sistema BIM"}};
+const JSON_PATH   = 'hitos_concesion_ruta_itata.json';
+const LS_CFG_KEY  = 'ghcfg_ruta_itata_v1';   // clave localStorage para configuración
+
+// ═══════════════════════════════════════════════════
+// GITHUB API
+// ═══════════════════════════════════════════════════
+const GH = {
+  owner: null, repo: null, token: null,
+  fileSha: null,   // SHA del archivo actual en GitHub (necesario para el PUT)
+
+  apiUrl() {
+    return `https://api.github.com/repos/${this.owner}/${this.repo}/contents/${JSON_PATH}`;
+  },
+
+  headers() {
+    return {
+      'Authorization': `token ${this.token}`,
+      'Accept': 'application/vnd.github.v3+json',
+      'Content-Type': 'application/json'
+    };
+  },
+
+  // Leer el archivo JSON desde GitHub
+  async read() {
+    const r = await fetch(this.apiUrl(), {headers: this.headers(), cache:'no-store'});
+    if (r.status === 404) {
+      // El archivo aún no existe → primer uso
+      this.fileSha = null;
+      return {};
+    }
+    if (!r.ok) throw new Error(`GitHub API: ${r.status} ${r.statusText}`);
+    const meta = await r.json();
+    this.fileSha = meta.sha;
+    const text = atob(meta.content.replace(/\n/g,''));
+    const raw  = JSON.parse(text);
+    return (raw.version && raw.data) ? raw.data : raw;
+  },
+
+  // Escribir el archivo JSON en GitHub (crea o actualiza)
+  async write(data) {
+    const payload = {
+      version:  2,
+      proyecto: 'Concesión Acceso Norte a Concepción — D.S. N°169',
+      guardado: new Date().toISOString(),
+      data:     data
+    };
+    const content = btoa(unescape(encodeURIComponent(JSON.stringify(payload, null, 2))));
+    const body = {
+      message: `Actualización hitos ${new Date().toISOString().slice(0,16).replace('T',' ')}`,
+      content,
+      ...(this.fileSha ? {sha: this.fileSha} : {})
+    };
+    const r = await fetch(this.apiUrl(), {
+      method: 'PUT',
+      headers: this.headers(),
+      body: JSON.stringify(body)
+    });
+    if (!r.ok) {
+      const err = await r.json().catch(()=>({}));
+      throw new Error(err.message || `GitHub API: ${r.status}`);
+    }
+    const res = await r.json();
+    this.fileSha = res.content.sha;
+  }
+};
+
+// ═══════════════════════════════════════════════════
+// CONFIGURACIÓN (localStorage)
+// ═══════════════════════════════════════════════════
+function saveConfig(owner, repo, token) {
+  localStorage.setItem(LS_CFG_KEY, JSON.stringify({owner, repo, token}));
+}
+function loadConfig() {
+  try { return JSON.parse(localStorage.getItem(LS_CFG_KEY)||'null'); }
+  catch(e) { return null; }
+}
+function clearConfig() { localStorage.removeItem(LS_CFG_KEY); }
+
+// ═══════════════════════════════════════════════════
+// STORE — datos en memoria
+// ═══════════════════════════════════════════════════
+const Store = {
+  data: {},
+  _timer: null,
+
+  set(n, val) {
+    if (val) this.data[String(n)] = val;
+    else     delete this.data[String(n)];
+    this._queue();
+  },
+
+  get(n) { return this.data[String(n)] || ''; },
+
+  clear() { this.data = {}; this._queue(); },
+
+  _queue() {
+    setSaveStatus('saving');
+    clearTimeout(this._timer);
+    // Debounce 600ms — espera que el usuario termine de escribir
+    this._timer = setTimeout(() => this._flush(), 600);
+  },
+
+  async _flush() {
+    try {
+      await GH.write(this.data);
+      setSaveStatus('saved');
+    } catch(e) {
+      setSaveStatus('error', e.message);
+    }
+  }
+};
+
+// ═══════════════════════════════════════════════════
+// INDICADOR GUARDADO
+// ═══════════════════════════════════════════════════
+function setSaveStatus(state, msg) {
+  const dot = document.getElementById('save-dot');
+  const txt = document.getElementById('save-txt');
+  dot.className = 'save-dot';
+  const map = {
+    connecting: ['',          'Conectando…'],
+    saved:      ['',          'Guardado en GitHub ✓'],
+    saving:     ['saving',    'Guardando…'],
+    error:      ['error',     'Error al guardar'],
+    loading:    ['saving',    'Cargando datos…'],
+  };
+  const [cls, label] = map[state] || ['', state];
+  if (cls) dot.classList.add(cls);
+  txt.textContent = msg || label;
+}
+
+// ═══════════════════════════════════════════════════
+// LÓGICA ESTADOS
+// ═══════════════════════════════════════════════════
+const TODAY = new Date(); TODAY.setHours(0,0,0,0);
+function parseF(s){ return(!s||s==='permanente'||s==='pendiente')?null:new Date(s+'T00:00:00');}
+function estado(h){
+  const c=Store.get(h.n),f=parseF(h.fecha_str);
+  if(!f) return 'PERMANENTE';
+  if(c) return new Date(c+'T00:00:00')<=f?'CUMPLIDO':'RETRASADO';
+  const d=Math.round((f-TODAY)/86400000);
+  if(d<=0) return 'VENCIDO'; if(d<=30) return 'URGENTE';
+  if(d<=90) return 'PRÓXIMO'; return 'PENDIENTE';
+}
+function diasLabel(h){
+  const c=Store.get(h.n),f=parseF(h.fecha_str); if(!f) return '';
+  if(c){const d=Math.round((new Date(c+'T00:00:00')-f)/86400000);
+    if(d<0) return `<br><small style="font-size:9px;font-family:DM Mono,monospace;color:var(--ok)">${Math.abs(d)}d antes</small>`;
+    if(d>0) return `<br><small style="font-size:9px;font-family:DM Mono,monospace;color:var(--late)">${d}d tarde</small>`;
+    return `<br><small style="font-size:9px;font-family:DM Mono,monospace;color:var(--ok)">en plazo</small>`;}
+  const d=Math.round((f-TODAY)/86400000);
+  return d>0?`<br><small style="font-size:9px;font-family:DM Mono,monospace;color:var(--ink-muted)">en ${d}d</small>`
+            :`<br><small style="font-size:9px;font-family:DM Mono,monospace;color:var(--venc)">hace ${Math.abs(d)}d</small>`;
+}
+function badgeE(h){return{CUMPLIDO:'<span class="badge b-ok">✔ Cumplido</span>',RETRASADO:'<span class="badge b-late">✖ Retrasado</span>',VENCIDO:'<span class="badge b-venc">⚠ Vencido</span>',URGENTE:'<span class="badge b-crit">🔴 Urgente</span>','PRÓXIMO':'<span class="badge b-warn">🟡 Próximo</span>',PENDIENTE:'<span class="badge b-pend">🔵 Pendiente</span>',PERMANENTE:'<span class="badge b-perm">◉ Permanente</span>'}[estado(h)]||'';}
+function badgeS(s){return`<span class="bs ${{'S1':'bs1','S2':'bs2','S3':'bs3','S1 y S2':'bs12','General':'bsg'}[s]||'bsg'}">${s}</span>`;}
+function contarE(){const c={cumpl:0,late:0,venc:0,urg:0,prox:0,pend:0};HITOS.forEach(h=>{const st=estado(h);if(st==='CUMPLIDO')c.cumpl++;else if(st==='RETRASADO')c.late++;else if(st==='VENCIDO')c.venc++;else if(st==='URGENTE')c.urg++;else if(st==='PRÓXIMO')c.prox++;else if(st==='PENDIENTE')c.pend++;});return c;}
+
+// ═══════════════════════════════════════════════════
+// FILTROS
+// ═══════════════════════════════════════════════════
+let fE='todos',fS='todos',fQ='',colapsado=false;
+function match(h){const st=estado(h);if(fE!=='todos'&&st!==fE)return false;if(fS!=='todos'&&!h.sector.includes(fS))return false;if(fQ){const q=fQ.toLowerCase();if(!h.desc.toLowerCase().includes(q)&&!h.area.toLowerCase().includes(q)&&!h.fund.toLowerCase().includes(q)&&!h.obs.toLowerCase().includes(q))return false;}return true;}
+
+// ═══════════════════════════════════════════════════
+// RENDER
+// ═══════════════════════════════════════════════════
+function renderHeader(){const c=contarE();document.getElementById('meta-fecha').textContent='Evaluación: '+TODAY.toLocaleDateString('es-CL',{day:'2-digit',month:'short',year:'numeric'})+'  ·  120 hitos  ·  17 bloques';document.getElementById('stats-hdr').innerHTML=`<div class="stat ok"><div class="stat-n">${c.cumpl}</div><div class="stat-l">Cumplidos</div></div><div class="stat late"><div class="stat-n">${c.late}</div><div class="stat-l">Retrasados</div></div><div class="stat venc"><div class="stat-n">${c.venc}</div><div class="stat-l">Vencidos</div></div><div class="stat crit"><div class="stat-n">${c.urg}</div><div class="stat-l">Urgentes</div></div><div class="stat warn"><div class="stat-n">${c.prox}</div><div class="stat-l">Próximos</div></div><div class="stat pend"><div class="stat-n">${c.pend}</div><div class="stat-l">Pendientes</div></div>`;}
+
+function renderAlertas(){const criticos=HITOS.filter(h=>{const st=estado(h);return st==='URGENTE'||st==='VENCIDO'||st==='RETRASADO';}).sort((a,b)=>(parseF(a.fecha_str)||new Date(9999,0,1))-(parseF(b.fecha_str)||new Date(9999,0,1))).slice(0,8);const el=document.getElementById('alertas-container');if(!criticos.length){el.innerHTML='';return;}el.innerHTML=`<div class="alertas"><div class="al-title">⚠ Requieren atención — Vencidos, Retrasados o Urgentes</div>${criticos.map(h=>{const st=estado(h);const tag=st==='VENCIDO'?'VENCIDO':st==='RETRASADO'?'RETRASADO':'≤30d';return`<div class="al-row"><span class="al-tag">${tag}</span><span class="al-desc"><strong>${h.area}</strong> — ${h.desc.substring(0,90)}${h.desc.length>90?'…':''}</span><span class="al-fecha">${h.fecha_display} · ${h.fund}</span></div>`;}).join('')}</div>`;}
+
+function renderBloques(){const areas=[...new Set(HITOS.map(h=>h.area))];const cont=document.getElementById('bloques-container');cont.innerHTML='';areas.forEach(area=>{const bInfo=BLOQUES_MAP[area]||{num:'—',label:area};const hitosArea=HITOS.filter(h=>h.area===area);const visible=hitosArea.filter(match);if(!visible.length)return;const el=document.createElement('div');el.className='bloque';const rows=hitosArea.map(h=>{const vis=match(h),cumpl=Store.get(h.n),f=parseF(h.fecha_str),isFilled=!!cumpl,isLate=isFilled&&f&&new Date(cumpl+'T00:00:00')>f;return`<tr class="${vis?'':'hidden-row'}" data-n="${h.n}"><td class="td-n">${h.n}</td><td class="td-d"><div class="td-dm">${h.desc}</div>${h.obs?`<div class="td-do">${h.obs.substring(0,115)}${h.obs.length>115?'…':''}</div>`:''}</td><td class="td-s">${badgeS(h.sector)}</td><td class="td-f">${!f?`<span class="fp">${h.fecha_display.substring(0,36)}</span>`:`<span class="fv">${h.fecha_display}</span>${diasLabel(h)}`}</td><td class="td-e">${badgeE(h)}</td><td class="td-fu">${h.fund}</td><td class="td-c"><div class="cw"><input type="date" class="ci${isFilled?(isLate?' late':' ok'):''}" data-hito="${h.n}" value="${cumpl}" title="Se guarda automáticamente en GitHub"><button class="cc${isFilled?' vis':''}" data-hito="${h.n}" title="Borrar">×</button></div></td></tr>`;}).join('');el.innerHTML=`<div class="bl-hdr"><span class="bl-tag">${bInfo.num}</span><span class="bl-title">${bInfo.label}</span><span class="bl-cnt">${visible.length} hito${visible.length!==1?'s':''}</span><span class="bl-arr">▾</span></div><div class="bl-body" style="max-height:9999px"><div class="tbl-wrap"><table><thead><tr><th>#</th><th>Descripción del hito / entregable</th><th>Sector</th><th>Fecha límite</th><th>Estado</th><th>Fundamento</th><th class="th-c">Fecha Cumplimiento ✎</th></tr></thead><tbody>${rows}</tbody></table></div></div>`;el.querySelector('.bl-hdr').addEventListener('click',()=>{const col=el.classList.toggle('collapsed');el.querySelector('.bl-body').style.maxHeight=col?'0':'9999px';});cont.appendChild(el);});cont.querySelectorAll('.ci').forEach(inp=>{inp.addEventListener('change',function(){const n=parseInt(this.dataset.hito);Store.set(n,this.value||'');updateRow(n);renderHeader();renderAlertas();});});cont.querySelectorAll('.cc').forEach(btn=>{btn.addEventListener('click',function(e){e.stopPropagation();const n=parseInt(this.dataset.hito);Store.set(n,'');updateRow(n);renderHeader();renderAlertas();});});}
+
+function updateRow(n){const h=HITOS.find(x=>x.n===n),tr=document.querySelector(`tr[data-n="${n}"]`);if(!h||!tr)return;const cumpl=Store.get(n),f=parseF(h.fecha_str),isFilled=!!cumpl,isLate=isFilled&&f&&new Date(cumpl+'T00:00:00')>f;tr.querySelector('.td-e').innerHTML=badgeE(h);if(f)tr.querySelector('.td-f').innerHTML=`<span class="fv">${h.fecha_display}</span>${diasLabel(h)}`;const inp=tr.querySelector('.ci'),btn=tr.querySelector('.cc');inp.value=cumpl;inp.className='ci'+(isFilled?(isLate?' late':' ok'):'');btn.className='cc'+(isFilled?' vis':'');}
+
+function render(){renderHeader();renderAlertas();renderBloques();}
+
+let toastT;
+function toast(msg,err=false){const el=document.getElementById('toast');el.textContent=msg;el.className='toast show'+(err?' err':'');clearTimeout(toastT);toastT=setTimeout(()=>el.classList.remove('show'),3000);}
+
+// ═══════════════════════════════════════════════════
+// PANEL DE CONFIGURACIÓN
+// ═══════════════════════════════════════════════════
+function showCfg(){ document.getElementById('cfg-overlay').classList.remove('hidden'); }
+function hideCfg(){ document.getElementById('cfg-overlay').classList.add('hidden'); }
+function showCfgError(msg){ const el=document.getElementById('cfg-error'); el.textContent=msg; el.classList.add('show'); }
+function hideCfgError(){ document.getElementById('cfg-error').classList.remove('show'); }
+
+async function connectAndLoad(owner, repo, token) {
+  GH.owner = owner; GH.repo = repo; GH.token = token;
+  setSaveStatus('loading');
+  try {
+    const data = await GH.read();
+    Store.data = {};
+    Object.entries(data).forEach(([k,v]) => {
+      if(/^\d{4}-\d{2}-\d{2}$/.test(String(v))) Store.data[k]=v;
+    });
+    saveConfig(owner, repo, token);
+    hideCfg();
+    setSaveStatus('saved');
+    render();
+    toast(`Conectado a ${owner}/${repo} — ${Object.keys(Store.data).length} fechas cargadas`);
+  } catch(e) {
+    setSaveStatus('error');
+    showCfgError('No se pudo conectar: ' + e.message + '. Verifique usuario, repositorio y token.');
+  }
+}
+
+document.getElementById('cfg-connect').addEventListener('click', async function() {
+  const owner = document.getElementById('cfg-owner').value.trim();
+  const repo  = document.getElementById('cfg-repo').value.trim();
+  const token = document.getElementById('cfg-token').value.trim();
+  if (!owner||!repo||!token) { showCfgError('Complete todos los campos.'); return; }
+  hideCfgError();
+  this.disabled = true; this.textContent = 'Conectando…';
+  await connectAndLoad(owner, repo, token);
+  this.disabled = false; this.textContent = 'Conectar y cargar datos';
+});
+
+document.getElementById('btn-cfg').addEventListener('click', () => {
+  const cfg = loadConfig();
+  if (cfg) {
+    document.getElementById('cfg-owner').value = cfg.owner||'';
+    document.getElementById('cfg-repo').value  = cfg.repo||'';
+    document.getElementById('cfg-token').value = cfg.token||'';
+  }
+  hideCfgError();
+  showCfg();
+});
+
+// ═══════════════════════════════════════════════════
+// RESTO DE EVENTOS
+// ═══════════════════════════════════════════════════
+document.querySelectorAll('.fb[data-estado]').forEach(btn=>{btn.addEventListener('click',function(){document.querySelectorAll('.fb[data-estado]').forEach(b=>b.classList.remove('active'));this.classList.add('active');fE=this.dataset.estado;renderBloques();});});
+document.getElementById('filtro-sector').addEventListener('change',function(){fS=this.value;renderBloques();});
+document.getElementById('buscar').addEventListener('input',function(){fQ=this.value;renderBloques();});
+document.getElementById('toggle-all').addEventListener('click',function(){colapsado=!colapsado;this.textContent=colapsado?'Expandir todo':'Colapsar todo';document.querySelectorAll('.bloque').forEach(b=>{b.querySelector('.bl-body').style.maxHeight=colapsado?'0':'9999px';colapsado?b.classList.add('collapsed'):b.classList.remove('collapsed');});});
+document.getElementById('btn-csv').addEventListener('click',()=>{const rows=[['N°','Área','Descripción','Sector','Fecha límite','Estado','Fundamento','Fecha Cumplimiento']];HITOS.forEach(h=>rows.push([h.n,h.area,'"'+h.desc.replace(/"/g,'""')+'"',h.sector,h.fecha_display,estado(h),h.fund,Store.get(h.n)||'']));const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([rows.map(r=>r.join(',')).join('\n')],{type:'text/csv;charset=utf-8;'}));a.download='hitos_concesion_'+new Date().toISOString().slice(0,10)+'.csv';a.click();toast('CSV exportado');});
+document.getElementById('btn-reset').addEventListener('click',()=>document.getElementById('modal-reset').classList.add('open'));
+document.getElementById('modal-cancel').addEventListener('click',()=>document.getElementById('modal-reset').classList.remove('open'));
+document.getElementById('modal-confirm').addEventListener('click',()=>{document.getElementById('modal-reset').classList.remove('open');Store.clear();render();});
+document.getElementById('modal-reset').addEventListener('click',function(e){if(e.target===this)this.classList.remove('open');});
+
+// ═══════════════════════════════════════════════════
+// INICIO
+// ═══════════════════════════════════════════════════
+document.getElementById('fecha-gen').textContent=
+  new Date().toLocaleDateString('es-CL',{day:'2-digit',month:'long',year:'numeric'});
+
+render(); // render inicial sin datos (para mostrar la UI)
+
+// Intentar conectar automáticamente con credenciales guardadas
+const savedCfg = loadConfig();
+if (savedCfg && savedCfg.owner && savedCfg.repo && savedCfg.token) {
+  document.getElementById('cfg-owner').value = savedCfg.owner;
+  document.getElementById('cfg-repo').value  = savedCfg.repo;
+  document.getElementById('cfg-token').value = savedCfg.token;
+  connectAndLoad(savedCfg.owner, savedCfg.repo, savedCfg.token);
+} else {
+  showCfg(); // primera vez → mostrar panel de configuración
+  setSaveStatus('offline');
+}
+</script>
+</body>
+</html>
